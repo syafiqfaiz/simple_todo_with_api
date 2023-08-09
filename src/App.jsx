@@ -1,55 +1,93 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './App.css'
 import 'bootstrap/dist/css/bootstrap.min.css';
 import FormModal from './components/FormModal'
+import { createClient } from "@supabase/supabase-js";
 
-const initialTodos = [
-  { id: 1, text: 'Learn VSCode', completed: true, points: 2, user: {id: 1, name: 'Abu'} },
-  { id: 2, text: 'Learn Css', completed: true, points: 5, user: {id: 2, name: 'Ali'} },
-  { id: 3, text: 'Learn HTML', completed: true, points: 7, user: {id: 1, name: 'Abu'} },
-  { id: 4, text: 'Learn Bootstrap', completed: true, points: 2, user: {id: 2, name: 'Ali'} },
-  { id: 5, text: 'Learn Git', completed: true, points: 10, user: {id: 1, name: 'Abu'} },
-  { id: 6, text: 'Learn Databse', completed: true, points: 1, user: {id: 1, name: 'Abu'} },
-  { id: 7, text: 'Learn Tailwind', completed: true, points: 3, user: {id: 2, name: 'Ali'} },
-  { id: 8, text: 'Learn SQL', completed: true, points: 6, user: {id: 1, name: 'Abu'} },
-]
+const supabase = createClient(
+  "https://bnbktrzydklxwwwifesv.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJuYmt0cnp5ZGtseHd3d2lmZXN2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE2OTE1MDE4NjcsImV4cCI6MjAwNzA3Nzg2N30.qnBDylGhgzDTKn4aTXrRC4v74kesqDxq5TUIY6iDKmE"
+)
 
 const defaultTodo = {
-  id: '',
   text: '',
   points: '',
-  user: ''
 }
 
 function App() {
-  const [todos, setTodos] = useState(initialTodos)
+  const [todos, setTodos] = useState([])
   const [todoEdit, setTodoEdit] = useState(defaultTodo)
   const [showModal, setShowModal] = useState(false)
 
-  const handleToggleCompleted = (id) => {
+  async function getTodos() {
+    const { data } = await supabase
+      .from("todos")
+      .select();
+
+    setTodos(data)
+  }
+
+  useEffect(() => {
+    getTodos()
+  }, [])
+
+  const handleToggleCompleted = async (id) => {
+    const completed = !todos.find((todo) => todo.id === id).completed
+    
+    const { data, error } = await supabase
+      .from('todos')
+      .update({ completed: completed })
+      .eq('id', id)
+      .select()
+
     const newTodos = todos.map((todo) => {
-      if(todo.id === id){
-        return {...todo, completed: !todo.completed}
+      if(todo.id === data[0].id){
+        return data[0]
       }
       return todo
     })
+
     setTodos(newTodos)
   }
 
-  const onSubmitForm = (newTodo) => {
+  const onSubmitForm = async (newTodo) => {
     if(newTodo.id){
+      // update
+      const { data, error } = await supabase
+        .from('todos')
+        .update({ ...newTodo })
+        .eq('id', newTodo.id)
+        .select()
+
       const newTodos = todos.map((todo) => {
-        if(todo.id === newTodo.id){
-          return newTodo
+        if(todo.id === data[0].id){
+          return data[0]
         }
         return todo
       })
+
       setTodos(newTodos)
     }else{
-      const newTodos = [...todos, {...newTodo, id: todos.length + 1}]
+      // create
+      const { data, error } = await supabase
+        .from('todos')
+        .insert([{...newTodo}])
+        .select()
+
+      const newTodos = [...todos, data[0]]
       setTodos(newTodos)
     }
   }
+
+  const onDelete = async (id) => {
+    const { error } = await supabase
+    .from('todos')
+    .delete()
+    .eq('id', id)
+
+    getTodos()
+  }
+
 
   const toggleEdit = (todo) => {
     setTodoEdit(todo)
@@ -82,6 +120,7 @@ function App() {
                           <span className="mx-2 badge bg-primary">{todo.points}</span>
                           <span className="badge bg-secondary">{todo?.user?.name}</span>
                           <span className='mx-2 text-primary' onClick={()=> {toggleEdit(todo)}}>edit</span>
+                          <span className='mx-2 text-danger' onClick={()=> {onDelete(todo.id)}}>delete</span>
                         </div>
                       </div>
                     </div>
